@@ -15,7 +15,10 @@ from models import*
 class homework_3(pl.LightningModule):
     def __init__(self, args):
         super(homework_3, self).__init__(args)
-        self.model = args.model
+        if args.model == 'linear':
+    		self.model = models.Fully_Connected(***** fill out arguments from models.py)
+		elif args.model == 'LSTM':
+			self.model = models.LSTM(**** fill out arguments from models.py)
 
     def forward(self, x):
         return self.model(x)
@@ -56,6 +59,7 @@ def cli_main():
     # args
     # ------------
     parser = ArgumentParser()
+    parser.add_argument('--model', default='linear', type=str)
     parser.add_argument('--batch_size', default=32, type=int)
     parser = pl.Trainer.add_argparse_args(parser)
     parser = homework_3.add_model_specific_args(parser)
