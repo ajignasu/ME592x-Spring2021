@@ -9,13 +9,14 @@ from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+import models
 from models import *
 import operator
 import data
 from data import TopoDataset1
-import utils
-from utils import *
 from tensorboardX import SummaryWriter
+import tqdm
+from tqdm import tqdm
 
 
 # for reference:
@@ -145,7 +146,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 			# plot out some samples from validation
-			fig, axs = plt.subplots(len(val_samples), 4, figsize=(1*4,1*len(val_samples)),
+			fig, axs = plt.subplots(len(validation_samples), 4, figsize=(1*4,1*len(validation_samples)),
 							subplot_kw={'aspect': 'auto'}, sharex=True, sharey=True, squeeze=True)
 			fig.suptitle('Generated Topology Optimization SE predictions')
 			for ax_row in axs:
@@ -157,7 +158,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				initial_SE = sample['initial_SE'].type_as(next(model.parameters()))
 				final_SE = sample['final_SE'].type_as(next(model.parameters()))
 				final_D = sample['final_D'].type_as(next(model.parameters()))
-				prediction_D = model(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
+				prediction_D = generator(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
 				if isinstance(prediction_SE, tuple):
 					prediction_D = prediction_D[1]
 				axs[idx][0].imshow(log_normalization(initial_SE).cpu().detach().squeeze().numpy(), cmap=plt.cm.jet, interpolation='nearest')
@@ -165,6 +166,57 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				axs[idx][2].imshow((1-final_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
 				axs[idx][3].imshow((1-prediction_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
 			tensorboard.add_figure('Predicted Density', fig, epoch)
+
+
+
+
+
+if __name__ == '__main__':
+
+	# set parameters
+	epochs = 2
+	tensorboard = 'dbug'
+	batch_size = 32
+	#training parameters
+	use_cuda = torch.cuda.is_available()
+	device = torch.device("cuda" if use_cuda else "cpu")
+
+	#set data path
+	data_path = '/data/Aditya/TopologyOptimization/ConvLSTM/topopt/Data/uniform_data_72k'
+
+	#initialize datasets
+	train_dataset = TopoDataset1(data_path=data_path, model_type = 'generator', mode='train')
+	validation_dataset = TopoDataset1(data_path=data_path, model_type = 'generator', mode='validation')
+
+	#initialize val samples for figures
+	samples_ids = [1, 10, 200, 131, 150, 431, 472, 900, 700, 881]
+	validation_samples = [validation_dataset[idx] for idx in samples_ids]
+
+	#initialize data loaders
+	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+	validation_loader = torch.utils.data.DataLoader(validation_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+
+	#output path
+	output_path = os.path.join('./logs/' + tensorboard + '/') 
+
+	#create appropriate directory if it DNE
+	if not os.path.exists(output_path):
+		os.makedirs(output_path)
+
+	#training loop args
+	tensorboard = SummaryWriter(output_path)
+
+	print('Training loop is starting')
+
+	# train model
+	train(device, train_loader, validation_loader, validation_samples, epochs, tensorboard)
+
+	print('Training loop completed.')
+	print('Saving model...')
+	#save training outputs and model checkpoints
+	torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
+	torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
+	print('Model saved.')
 
 
 

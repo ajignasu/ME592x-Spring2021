@@ -79,9 +79,9 @@ class Discriminator_OT(nn.Module):
         return self.linear_2(x)
 
 
-class Discriminator_OT_single(nn.Module):
+class Discriminator_wGAN(nn.Module):
     def __init__(self, in_channels=1):
-        super(Discriminator_OT_single, self).__init__()
+        super(Discriminator_wGAN, self).__init__()
 
         def discriminator_block(in_filters, out_filters, normalization=True):
             """Returns downsampling layers of each discriminator block"""
