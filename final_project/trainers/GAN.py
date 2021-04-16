@@ -27,18 +27,16 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 	#initialize models => call nn.Module -> initialize weights -> send to device for training
 	generator = # call and initialize appropriate model here
-	generator.apply(weights_init)
+	generator.apply(weights_init_normal)
 	generator = generator.to(device)
 	discriminator = # call and initialize appropriate model here
-	discriminator.apply(weights_init)
+	discriminator.apply(weights_init_normal)
 	discriminator = discriminator.to(device)
 
 	#initialize optimizers
 	opt_generator = # select optimizer type of optimizer matters especially for different GANs
 	opt_discriminator = # select optimizer type of optimizer matters especially for different GANs
 
-	#initialize tensorboard
-	writer = SummaryWriter(tensorboard)
 
 	#iterate through epochs
 	for epoch in range(epochs):

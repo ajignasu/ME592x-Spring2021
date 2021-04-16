@@ -26,25 +26,20 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 	print('Beginning training.')
 
 	#initialize models => call nn.Module -> initialize weights -> send to device for training
-	generator = # call and initialize appropriate model here
-	generator.apply(weights_init)
+	generator = AE(in_channels=2, out_channels=1)
+	generator.apply(weights_init_normal)
 	generator = generator.to(device)
-	discriminator = # call and initialize appropriate model here
-	discriminator.apply(weights_init)
+	discriminator = Discriminator_OT_single()
+	discriminator.apply(weights_init_normal)
 	discriminator = discriminator.to(device)
 
 	#initialize optimizers
 	opt_generator = # select optimizer type of optimizer matters especially for different GANs
 	opt_discriminator = # select optimizer type of optimizer matters especially for different GANs
 
-	#initialize tensorboard
-	writer = SummaryWriter(tensorboard)
 
 	#iterate through epochs
 	for epoch in range(epochs):
-
-		#initialize losses
-		running_gen_loss, running_dis_loss = 0.0, 0.0
 
 		print('Beginning epoch ', epoch+1)
 
@@ -67,44 +62,61 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				p.requires_grad_(False)
 
 			#zero gradient (generator)
-			#insert code here
+			generator.zero_gradient()
 
 			# generator prediction
 			pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
-			#insert code here
+			generator_loss = discriminator(pred_D)
+			generator_loss = generator_loss.mean()
+			generator_loss = -generator_loss
 
 			#call backward pass
-			#insert code here
+			generator_loss.backward()
 
 			#take generator's optimization step
-			#insert code here
-
+			opt_generator.step
 
 
 			#unfreeze discriminator
+			for p in discriminator.parameters():
+				p.requires_grad_(True)
 
 
 			#zero gradient (discriminator)
+			discriminator.zero_gradient()
+
+
+			#forward pass of gen for discriminator loss
+			pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 
 			#discriminator forward pass over appropriate inputs
+			disc_real = discriminator(final_D)
+			disc_real = disc_real.mean()
 
 
-			# calculate discriminator losses
+			# train with fake data
+			disc_fake = aD(pred_D)
+			disc_fake = disc_fake.mean()
+
+
+			# final discriminator cost
+			wass_distance = disc_fake - disc_real
 
 
 			# call backward pass
+			wass_distance.backward()
 
 
 			# take discriminator's optimization step 
-
+			opt_discriminator.step()
 
 
 			#log losses to tensorboard 
 			tensorboard.add_scalar('training/generator_loss', generator_loss, epoch)
-			tensorboard.add_scalar('training/discriminator_loss', discriminator_loss, epoch)
+			tensorboard.add_scalar('training/wass_distance', wass_distance, epoch)
 
 
 		# evaluate validation set
@@ -130,18 +142,27 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
-				#insert code here
-
+				generator_loss = discriminator(pred_D)
+				generator_loss = generator_loss.mean()
+				generator_loss = -generator_loss
 
 				#discriminator forward pass over appropriate inputs
+				disc_real = discriminator(final_D)
+				disc_real = disc_real.mean()
 
 
-				# calculate discriminator losses
+				# train with fake data
+				disc_fake = discriminator(pred_D)
+				disc_fake = disc_fake.mean()
+
+
+				# final discriminator cost
+				wass_distance = disc_fake - disc_real
 
 
 				#log losses to tensorboard 
 				tensorboard.add_scalar('validation/generator_loss', generator_loss, epoch)
-				tensorboard.add_scalar('validation/discriminator_loss', discriminator_loss, epoch)
+				tensorboard.add_scalar('validation/wass_distance', wass_distance, epoch)
 
 
 			# plot out some samples from validation
@@ -154,10 +175,10 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 					ax.set_yticks([])
 
 			for idx, sample in enumerate(validation_samples):
-				initial_SE = sample['initial_SE'].type_as(next(model.parameters()))
-				final_SE = sample['final_SE'].type_as(next(model.parameters()))
-				final_D = sample['final_D'].type_as(next(model.parameters()))
-				prediction_D = model(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
+				initial_SE = sample['initial_SE'].type_as(next(generator.parameters()))
+				final_SE = sample['final_SE'].type_as(next(generator.parameters()))
+				final_D = sample['final_D'].type_as(next(generator.parameters()))
+				prediction_D = generator(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
 				if isinstance(prediction_SE, tuple):
 					prediction_D = prediction_D[1]
 				axs[idx][0].imshow(log_normalization(initial_SE).cpu().detach().squeeze().numpy(), cmap=plt.cm.jet, interpolation='nearest')
@@ -173,8 +194,5 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 			
-
-
-
 
 
