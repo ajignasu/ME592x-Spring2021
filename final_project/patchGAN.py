@@ -27,16 +27,20 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 	print('Beginning training.')
 
 	#initialize models => call nn.Module -> initialize weights -> send to device for training
-	generator = # call and initialize appropriate model here
+	generator = AE(in_channels=2, out_channel=1)
 	generator.apply(weights_init)
 	generator = generator.to(device)
-	discriminator = # call and initialize appropriate model here
+	discriminator = Discriminator_patchGAN()
 	discriminator.apply(weights_init)
 	discriminator = discriminator.to(device)
 
+	
 	#initialize optimizers
-	opt_generator = # select optimizer type of optimizer matters especially for different GANs
-	opt_discriminator = # select optimizer type of optimizer matters especially for different GANs
+	opt_generator = torch.optim.Adam(generator.parameters())
+	opt_discriminator = torch.optim.Adam(discriminator.parameters())
+
+	# loss functions
+
 
 	#initialize tensorboard
 	writer = SummaryWriter(tensorboard)
@@ -68,7 +72,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				p.requires_grad_(False)
 
 			#zero gradient (generator)
-			#insert code here
+			
 
 			# generator prediction
 			pred_D = model(torch.cat((initial_SE, initial_D), 1))

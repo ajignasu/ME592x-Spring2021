@@ -193,6 +193,10 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 						axs[idx][3].imshow((1-predict_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
 					tensorboard.add_figure('generated_sample', fig, epoch)
 
+				#save training outputs and model checkpoints
+					torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
+					torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
+
 
 
 
@@ -237,11 +241,11 @@ if __name__ == '__main__':
 	train(device, train_loader, validation_loader, validation_samples, epochs, tensorboard)
 
 	print('Training loop completed.')
-	print('Saving model...')
-	#save training outputs and model checkpoints
-	torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
-	torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
-	print('Model saved.')
+	# print('Saving model...')
+	# #save training outputs and model checkpoints
+	# torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
+	# torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
+	# print('Model saved.')
 
 
 			

@@ -27,16 +27,19 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 	print('Beginning training.')
 
 	#initialize models => call nn.Module -> initialize weights -> send to device for training
-	generator = # call and initialize appropriate model here
+	generator = AE(in_channels=2, out_channel=1)
 	generator.apply(weights_init_normal)
 	generator = generator.to(device)
-	discriminator = # call and initialize appropriate model here
+	discriminator = Discriminator()
 	discriminator.apply(weights_init_normal)
 	discriminator = discriminator.to(device)
 
 	#initialize optimizers
-	opt_generator = # select optimizer type of optimizer matters especially for different GANs
-	opt_discriminator = # select optimizer type of optimizer matters especially for different GANs
+	opt_generator = torch.optim.Adam(generator.parameters())
+	opt_discriminator = torch.optim.Adam(discriminator.parameters())
+
+	#initialize loss function
+	criterion = nn.BCELoss()
 
 
 	#iterate through epochs
@@ -66,39 +69,48 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				p.requires_grad_(False)
 
 			#zero gradient (generator)
-			#insert code here
+			generator.zero_grad()
 
 			# generator prediction
 			pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
-			#insert code here
+			generator_loss = discriminator(pred_D)
+			generator_loss = generator_loss.mean()
+			generator_loss = -generator_loss
 
 			#call backward pass
-			#insert code here
+			generator_loss.backward()
 
 			#take generator's optimization step
-			#insert code here
-
+			opt_generator.step
 
 
 			#unfreeze discriminator
+			for p in discriminator.parameters():
+				p.requires_grad_(True)
 
 
 			#zero gradient (discriminator)
+			discriminator.zero_grad()
 
 
 			#discriminator forward pass over appropriate inputs
+			disc_real = discriminator(final_D)
+			disc_real = disc_real.mean()
 
+			# train with fake data
+			disc_fake = discriminator(pred_D)
+			disc_fake = disc_fake.mean()
 
 			# calculate discriminator losses
-
+			discriminator_loss = (disc_real + disc_fake) / 2
 
 			# call backward pass
-
+			opt_discriminator.backward()
 
 			# take discriminator's optimization step 
-
+			opt_discriminator.step()
 
 
 			#log losses to tensorboard 
@@ -129,14 +141,21 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
-				#insert code here
+				generator_loss = discriminator(pred_D)
+				generator_loss = generator_loss.mean()
+				generator_loss = -generator_loss
 
 
 				#discriminator forward pass over appropriate inputs
+				disc_real = discriminator(final_D)
+				disc_real = disc_real.mean()
 
+				# train with fake data
+				disc_fake = discriminator(pred_D)
+				disc_fake = disc_fake.mean()
 
 				# calculate discriminator losses
-
+				discriminator_loss = (disc_real + disc_fake) / 2
 
 				#log losses to tensorboard 
 				tensorboard.add_scalar('validation/generator_loss', generator_loss, epoch)
