@@ -64,6 +64,11 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			final_SE = final_SE.to(device)
 			final_D = final_D.to(device)
 
+			# ground truth values
+			real_disc = discriminator(final_D)
+			real = Variable(torch.ones_like(real_disc), requires_grad_=False)
+			fake = Variable(torch.zeros_like(real_disc), requires_grad_=False)
+
 			#freeze discriminator
 			for p in discriminator.parameters():
 				p.requires_grad_(False)
@@ -75,7 +80,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
-			generator_loss = criterion(discriminator(pred_D), final_D)
+			generator_loss = criterion(discriminator(pred_D), real)
 			# generator_loss = discriminator(pred_D)
 			# generator_loss = generator_loss.mean()
 			# generator_loss = -generator_loss
@@ -97,8 +102,8 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 			#discriminator forward pass over appropriate inputs
-			discriminator_loss_real = criterion(discriminator(final_D), final_D)
-			discriminator_loss_fake = criterion(discriminator(pred_D.detach()), final_D) 
+			discriminator_loss_real = criterion(discriminator(final_D), real)
+			discriminator_loss_fake = criterion(discriminator(pred_D.detach()), fake) 
 			
 			# train with fake data
 			# disc_fake = discriminator(pred_D)
@@ -137,20 +142,25 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				final_SE = final_SE.to(device)
 				final_D = final_D.to(device)
 
+				# ground truth values
+				real_disc = discriminator(final_D)
+				real = Variable(torch.ones_like(real_disc), requires_grad_=False)
+				fake = Variable(torch.zeros_like(real_disc), requires_grad_=False)
+
 
 				# generator prediction
 				pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
-				generator_loss = criterion(discriminator(pred_D), final_D)
+				generator_loss = criterion(discriminator(pred_D), real)
 				#generator_loss = discriminator(pred_D)
 				#generator_loss = generator_loss.mean()
 				#generator_loss = -generator_loss
 
 
 				#discriminator forward pass over appropriate inputs
-				discriminator_loss_real = criterion(discriminator(final_D), final_D)
-				discriminator_loss_fake = criterion(discriminator(pred_D.detach()), final_D)
+				discriminator_loss_real = criterion(discriminator(final_D), real)
+				discriminator_loss_fake = criterion(discriminator(pred_D.detach()), fake)
 				#disc_real = discriminator(final_D)
 				#disc_real = disc_real.mean()
 
