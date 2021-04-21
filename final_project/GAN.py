@@ -75,9 +75,10 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
-			generator_loss = discriminator(pred_D)
-			generator_loss = generator_loss.mean()
-			generator_loss = -generator_loss
+			generator_loss = criterion(discriminator(pred_D), final_D)
+			# generator_loss = discriminator(pred_D)
+			# generator_loss = generator_loss.mean()
+			# generator_loss = -generator_loss
 
 			#call backward pass
 			generator_loss.backward()
@@ -96,15 +97,15 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 			#discriminator forward pass over appropriate inputs
-			disc_real = discriminator(final_D)
-			disc_real = disc_real.mean()
-
+			discriminator_loss_real = criterion(discriminator(final_D), final_D)
+			discriminator_loss_fake = criterion(discriminator(pred_D.detach()), final_D) 
+			
 			# train with fake data
-			disc_fake = discriminator(pred_D)
-			disc_fake = disc_fake.mean()
+			# disc_fake = discriminator(pred_D)
+			# disc_fake = disc_fake.mean()
 
 			# calculate discriminator losses
-			discriminator_loss = (disc_real + disc_fake) / 2
+			discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 2
 
 			# call backward pass
 			opt_discriminator.backward()
@@ -141,21 +142,24 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				pred_D = model(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
-				generator_loss = discriminator(pred_D)
-				generator_loss = generator_loss.mean()
-				generator_loss = -generator_loss
+				generator_loss = criterion(discriminator(pred_D), final_D)
+				#generator_loss = discriminator(pred_D)
+				#generator_loss = generator_loss.mean()
+				#generator_loss = -generator_loss
 
 
 				#discriminator forward pass over appropriate inputs
-				disc_real = discriminator(final_D)
-				disc_real = disc_real.mean()
+				discriminator_loss_real = criterion(discriminator(final_D), final_D)
+				discriminator_loss_fake = criterion(discriminator(pred_D.detach()), final_D)
+				#disc_real = discriminator(final_D)
+				#disc_real = disc_real.mean()
 
 				# train with fake data
-				disc_fake = discriminator(pred_D)
-				disc_fake = disc_fake.mean()
+				#disc_fake = discriminator(pred_D)
+				#disc_fake = disc_fake.mean()
 
 				# calculate discriminator losses
-				discriminator_loss = (disc_real + disc_fake) / 2
+				discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 2
 
 				#log losses to tensorboard 
 				tensorboard.add_scalar('validation/generator_loss', generator_loss, epoch)
@@ -183,6 +187,10 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				axs[idx][2].imshow((1-final_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
 				axs[idx][3].imshow((1-prediction_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
 			tensorboard.add_figure('Predicted Density', fig, epoch)
+		#save training outputs and model checkpoints
+			torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
+			torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
+
 
 
 
@@ -193,7 +201,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 if __name__ == '__main__':
 
 	# set parameters
-	epochs = 2
+	epochs = 50
 	tensorboard = 'dbug'
 	batch_size = 32
 	#training parameters
@@ -232,9 +240,6 @@ if __name__ == '__main__':
 
 	print('Training loop completed.')
 	print('Saving model...')
-	#save training outputs and model checkpoints
-	torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
-	torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
 	print('Model saved.')
 
 
