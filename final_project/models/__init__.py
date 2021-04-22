@@ -12,4 +12,5 @@ def weights_init_normal(m):
 
 
 __all__ = ['Encoder', 'Decoder', 'AE', 'VAE',
-            'Discriminator_wGAN', 'weights_init_normal']
+            'Discriminator_wGAN', 'weights_init_normal',
+            'Discriminator', 'Discriminator_GAN']
