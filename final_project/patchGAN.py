@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch import autograd
+from torch.autograd import Variable
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
@@ -27,26 +28,27 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 	print('Beginning training.')
 
 	#initialize models => call nn.Module -> initialize weights -> send to device for training
-	generator = AE(in_channels=2, out_channel=1)
-	generator.apply(weights_init)
+	generator = AE(in_channels=2, out_channels=1)
+	generator.apply(weights_init_normal)
 	generator = generator.to(device)
-	discriminator = Discriminator_patchGAN()
-	discriminator.apply(weights_init)
+	discriminator = Discriminator(in_channels=1)
+	discriminator.apply(weights_init_normal)
 	discriminator = discriminator.to(device)
 
-	
 	#initialize optimizers
 	opt_generator = torch.optim.Adam(generator.parameters())
 	opt_discriminator = torch.optim.Adam(discriminator.parameters())
 
-	# loss functions
+	#initialize loss function
+	criterion = nn.BCELoss()
+	criterion_pix = nn.L1Loss()
 
+	#pixel loss weight
+	pixel_weight = 10
 
-	#initialize tensorboard
-	writer = SummaryWriter(tensorboard)
 
 	#iterate through epochs
-	for epoch in range(epochs):
+	for epoch in tqdm(range(epochs)):
 
 		#initialize losses
 		running_gen_loss, running_dis_loss = 0.0, 0.0
@@ -67,44 +69,66 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			final_SE = final_SE.to(device)
 			final_D = final_D.to(device)
 
+			#discriminator prediction over true data
+			real_disc = discriminator(final_D)
+			
+			# ground truth values
+			real = Variable(torch.ones_like(real_disc), requires_grad=False)
+			fake = Variable(torch.zeros_like(real_disc), requires_grad=False)
+
 			#freeze discriminator
 			for p in discriminator.parameters():
 				p.requires_grad_(False)
 
 			#zero gradient (generator)
-			
+			generator.zero_grad()
 
 			# generator prediction
-			pred_D = model(torch.cat((initial_SE, initial_D), 1))
+			pred_D = generator(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
-			#insert code here
+			discriminator_pred_D = discriminator(pred_D)
+
+			#pixel-wise loss
+			gan_loss = criterion(discriminator_pred_D, real)
+			loss_pixel = criterion_pix(pred_D, final_D)
+			
+			generator_loss = gan_loss + pixel_weight*loss_pixel
 
 			#call backward pass
-			#insert code here
+			generator_loss.backward()
 
 			#take generator's optimization step
-			#insert code here
-
+			opt_generator.step()
 
 
 			#unfreeze discriminator
+			for p in discriminator.parameters():
+				p.requires_grad_(True)
 
 
 			#zero gradient (discriminator)
+			discriminator.zero_grad()
 
+			# generated pred_D for disc update
+			pred_D = generator(torch.cat((initial_SE, initial_D), 1))
+			
+			# real loss
+			pred_real = discriminator(final_D)
+			loss_real = criterion(pred_real, real)
 
-			#discriminator forward pass over appropriate inputs
-
+			# fake loss
+			pred_fake = discriminator(pred_D)
+			loss_fake = criterion(pred_fake, fake)
 
 			# calculate discriminator losses
-
+			discriminator_loss = (loss_real + loss_fake)* 0.5
 
 			# call backward pass
-
+			discriminator_loss.backward()
 
 			# take discriminator's optimization step 
-
+			opt_discriminator.step()
 
 
 			#log losses to tensorboard 
@@ -130,19 +154,38 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				final_SE = final_SE.to(device)
 				final_D = final_D.to(device)
 
+				#discriminator prediction over true data
+				real_disc = discriminator(final_D)
+				
+				# ground truth values
+				real = Variable(torch.ones_like(real_disc), requires_grad=False)
+				fake = Variable(torch.zeros_like(real_disc), requires_grad=False)
 
 				# generator prediction
-				pred_D = model(torch.cat((initial_SE, initial_D), 1))
+				pred_D = generator(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
-				#insert code here
+				discriminator_pred_D = discriminator(pred_D)
 
+				#pixel-wise loss
+				gan_loss = criterion(discriminator_pred_D, real)
+				loss_pixel = criterion_pix(pred_D, final_D)
+				
+				generator_loss = gan_loss + pixel_weight*loss_pixel
 
-				#discriminator forward pass over appropriate inputs
+				# generated pred_D for disc update
+				pred_D = generator(torch.cat((initial_SE, initial_D), 1))
+				
+				# real loss
+				pred_real = discriminator(final_D)
+				loss_real = criterion(pred_real, real)
 
+				# fake loss
+				pred_fake = discriminator(pred_D)
+				loss_fake = criterion(pred_fake, fake)
 
 				# calculate discriminator losses
-
+				discriminator_loss = (loss_real + loss_fake)* 0.5
 
 				#log losses to tensorboard 
 				tensorboard.add_scalar('validation/generator_loss', generator_loss, epoch)
@@ -150,26 +193,30 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 			# plot out some samples from validation
-			fig, axs = plt.subplots(len(validation_samples), 4, figsize=(1*4,1*len(validation_samples)),
-							subplot_kw={'aspect': 'auto'}, sharex=True, sharey=True, squeeze=True)
-			fig.suptitle('Generated Topology Optimization SE predictions')
-			for ax_row in axs:
-				for ax in ax_row:
-					ax.set_xticks([])
-					ax.set_yticks([])
+				fig, axs = plt.subplots(len(validation_samples), 4, figsize=(1*4,1*len(validation_samples)),
+						subplot_kw={'aspect': 'auto'}, sharex=True, sharey=True, squeeze=True)
+				fig.suptitle('Generated Topology Optimization Predictions')
+				for ax_row in axs:
+					for ax in ax_row:
+						ax.set_xticks([])
+						ax.set_yticks([])
 
-			for idx, sample in enumerate(validation_samples):
-				initial_SE = sample['initial_SE'].type_as(next(model.parameters()))
-				final_SE = sample['final_SE'].type_as(next(model.parameters()))
-				final_D = sample['final_D'].type_as(next(model.parameters()))
-				prediction_D = generator(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
-				if isinstance(prediction_SE, tuple):
-					prediction_D = prediction_D[1]
-				axs[idx][0].imshow(log_normalization(initial_SE).cpu().detach().squeeze().numpy(), cmap=plt.cm.jet, interpolation='nearest')
-				axs[idx][1].imshow((1-initial_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
-				axs[idx][2].imshow((1-final_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
-				axs[idx][3].imshow((1-prediction_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
-			tensorboard.add_figure('Predicted Density', fig, epoch)
+				for idx, sample in enumerate(validation_samples):
+
+					initial_SE = sample['initial_SE'].type_as(next(generator.parameters()))
+					initial_D = sample['initial_D'].type_as(next(generator.parameters()))
+					final_D = sample['final_D'].type_as(next(generator.parameters()))
+					predict_D = generator(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
+					if isinstance(predict_D, tuple):
+						predict_D = predict_D[1]
+					axs[idx][0].imshow(initial_SE.cpu().detach().squeeze().numpy(), cmap=plt.cm.jet, interpolation='nearest')
+					axs[idx][1].imshow((1-initial_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
+					axs[idx][2].imshow((1-final_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
+					axs[idx][3].imshow((1-predict_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
+				tensorboard.add_figure('generated_sample', fig, epoch)
+		#save training outputs and model checkpoints
+			torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
+			torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
 
 
 
@@ -177,12 +224,11 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 
-			
 
 if __name__ == '__main__':
 
 	# set parameters
-	epochs = 2
+	epochs = 50
 	tensorboard = 'dbug'
 	batch_size = 32
 	#training parameters
@@ -221,10 +267,9 @@ if __name__ == '__main__':
 
 	print('Training loop completed.')
 	print('Saving model...')
-	#save training outputs and model checkpoints
-	torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
-	torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
 	print('Model saved.')
+
+
 
 
 
