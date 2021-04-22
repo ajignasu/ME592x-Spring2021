@@ -251,7 +251,7 @@ if __name__ == '__main__':
 	validation_loader = torch.utils.data.DataLoader(validation_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 	#output path
-	output_path = os.path.join('./logs/' + tensorboard + '/') 
+	output_path = os.path.join('./logs_pix2pix/' + tensorboard + '/') 
 
 	#create appropriate directory if it DNE
 	if not os.path.exists(output_path):

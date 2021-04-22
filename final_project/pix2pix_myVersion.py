@@ -31,7 +31,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 	generator = AE(in_channels=2, out_channels=1)
 	generator.apply(weights_init_normal)
 	generator = generator.to(device)
-	discriminator = Discriminator(in_channels=1)
+	discriminator = Discriminator_GAN()
 	discriminator.apply(weights_init_normal)
 	discriminator = discriminator.to(device)
 
@@ -41,10 +41,11 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 	#initialize loss function
 	criterion = nn.BCELoss()
+	criterion_GAN = nn.MSELoss()
 	criterion_pix = nn.L1Loss()
 
 	#pixel loss weight
-	pixel_weight = 10
+	pixel_weight = 100
 
 
 	#iterate through epochs
@@ -69,12 +70,14 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			final_SE = final_SE.to(device)
 			final_D = final_D.to(device)
 
-			#discriminator prediction over true data
-			real_disc = discriminator(final_D)
+			# real inputs
+			real_1 = discriminator(final_D)
+			real_2 = discriminator(final_D)
+			# real_disc = discriminator(final_D)
 			
 			# ground truth values
-			real = Variable(torch.ones_like(real_disc), requires_grad=False)
-			fake = Variable(torch.zeros_like(real_disc), requires_grad=False)
+			real = Variable(torch.ones_like(real_1), requires_grad=False)
+			fake = Variable(torch.zeros_like(real_1), requires_grad=False)
 
 			#freeze discriminator
 			for p in discriminator.parameters():
@@ -87,13 +90,16 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			pred_D = generator(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
-			discriminator_pred_D = discriminator(pred_D)
+			fake_2 = pred_D
+			pred_fake = discriminator(fake_2, real_1)
+			gan_loss = criterion_GAN(pred_fake, real)
 
 			#pixel-wise loss
-			gan_loss = criterion(discriminator_pred_D, real)
-			loss_pixel = criterion_pix(pred_D, final_D)
+			loss_pixel = criterion_pix(fake_2, real_2)
 			
 			generator_loss = gan_loss + pixel_weight*loss_pixel
+			# generator_loss = generator_loss.mean()
+			# generator_loss = -generator_loss
 
 			#call backward pass
 			generator_loss.backward()
@@ -110,16 +116,24 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			#zero gradient (discriminator)
 			discriminator.zero_grad()
 
-			# generated pred_D for disc update
-			pred_D = generator(torch.cat((initial_SE, initial_D), 1))
+
+			#discriminator forward pass over appropriate inputs
 			
 			# real loss
-			pred_real = discriminator(final_D)
-			loss_real = criterion(pred_real, real)
+			pred_real = discriminator(real2, real_1)
+			loss_real = criterion_GAN(pred_real, real)
 
 			# fake loss
-			pred_fake = discriminator(pred_D)
-			loss_fake = criterion(pred_fake, fake)
+			pred_fake = discriminator(fake_2.detach(), real_1)
+			loss_fake = criterion_GAN(pred_fake, fake)
+
+
+			# discriminator_loss_real = criterion(discriminator(final_D), real)
+			# discriminator_loss_fake = criterion(discriminator(pred_D.detach()), fake) 
+			
+			# train with fake data
+			# disc_fake = discriminator(pred_D)
+			# disc_fake = disc_fake.mean()
 
 			# calculate discriminator losses
 			discriminator_loss = (loss_real + loss_fake)* 0.5
@@ -154,35 +168,43 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 				final_SE = final_SE.to(device)
 				final_D = final_D.to(device)
 
-				#discriminator prediction over true data
-				real_disc = discriminator(final_D)
+				# real inputs
+				real_1 = discriminator(final_D)
+				real_2 = discriminator(final_D)
+				# real_disc = discriminator(final_D)
 				
 				# ground truth values
 				real = Variable(torch.ones_like(real_disc), requires_grad=False)
 				fake = Variable(torch.zeros_like(real_disc), requires_grad=False)
 
+
 				# generator prediction
 				pred_D = generator(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
-				discriminator_pred_D = discriminator(pred_D)
+				fake_2 = pred_D
+				pred_fake = discriminator(fake_2, real_1)
+				gan_loss = criterion_GAN(pred_fake, real)
 
-				#pixel-wise loss
-				gan_loss = criterion(discriminator_pred_D, real)
-				loss_pixel = criterion_pix(pred_D, final_D)
-				
-				generator_loss = gan_loss + pixel_weight*loss_pixel
-
-				# generated pred_D for disc update
-				pred_D = generator(torch.cat((initial_SE, initial_D), 1))
-				
 				# real loss
-				pred_real = discriminator(final_D)
-				loss_real = criterion(pred_real, real)
+				pred_real = discriminator(real2, real_1)
+				loss_real = criterion_GAN(pred_real, real)
 
 				# fake loss
-				pred_fake = discriminator(pred_D)
-				loss_fake = criterion(pred_fake, fake)
+				pred_fake = discriminator(fake_2.detach(), real_1)
+				loss_fake = criterion_GAN(pred_fake, fake)
+
+
+
+				#discriminator forward pass over appropriate inputs
+				# discriminator_loss_real = criterion(discriminator(final_D), real)
+				# discriminator_loss_fake = criterion(discriminator(pred_D.detach()), fake)
+				#disc_real = discriminator(final_D)
+				#disc_real = disc_real.mean()
+
+				# train with fake data
+				#disc_fake = discriminator(pred_D)
+				#disc_fake = disc_fake.mean()
 
 				# calculate discriminator losses
 				discriminator_loss = (loss_real + loss_fake)* 0.5
@@ -228,7 +250,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 if __name__ == '__main__':
 
 	# set parameters
-	epochs = 50
+	epochs = 1
 	tensorboard = 'dbug'
 	batch_size = 32
 	#training parameters
@@ -251,7 +273,7 @@ if __name__ == '__main__':
 	validation_loader = torch.utils.data.DataLoader(validation_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 	#output path
-	output_path = os.path.join('./logs_patchGAN/' + tensorboard + '/') 
+	output_path = os.path.join('./logs/' + tensorboard + '/') 
 
 	#create appropriate directory if it DNE
 	if not os.path.exists(output_path):

@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch import autograd
+from torch.autograd import Variable
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
@@ -27,10 +28,10 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 	print('Beginning training.')
 
 	#initialize models => call nn.Module -> initialize weights -> send to device for training
-	generator = AE(in_channels=2, out_channel=1)
+	generator = AE(in_channels=2, out_channels=1)
 	generator.apply(weights_init_normal)
 	generator = generator.to(device)
-	discriminator = Discriminator()
+	discriminator = Discriminator_GAN()
 	discriminator.apply(weights_init_normal)
 	discriminator = discriminator.to(device)
 
@@ -43,7 +44,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 	#iterate through epochs
-	for epoch in range(epochs):
+	for epoch in tqdm(range(epochs)):
 
 		#initialize losses
 		running_gen_loss, running_dis_loss = 0.0, 0.0
@@ -66,8 +67,8 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 			# ground truth values
 			real_disc = discriminator(final_D)
-			real = Variable(torch.ones_like(real_disc), requires_grad_=False)
-			fake = Variable(torch.zeros_like(real_disc), requires_grad_=False)
+			real = Variable(torch.ones_like(real_disc), requires_grad=False)
+			fake = Variable(torch.zeros_like(real_disc), requires_grad=False)
 
 			#freeze discriminator
 			for p in discriminator.parameters():
@@ -77,7 +78,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			generator.zero_grad()
 
 			# generator prediction
-			pred_D = model(torch.cat((initial_SE, initial_D), 1))
+			pred_D = generator(torch.cat((initial_SE, initial_D), 1))
 
 			#calculate generator loss
 			generator_loss = criterion(discriminator(pred_D), real)
@@ -89,7 +90,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			generator_loss.backward()
 
 			#take generator's optimization step
-			opt_generator.step
+			opt_generator.step()
 
 
 			#unfreeze discriminator
@@ -113,7 +114,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 2
 
 			# call backward pass
-			opt_discriminator.backward()
+			discriminator_loss.backward()
 
 			# take discriminator's optimization step 
 			opt_discriminator.step()
@@ -144,12 +145,12 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 				# ground truth values
 				real_disc = discriminator(final_D)
-				real = Variable(torch.ones_like(real_disc), requires_grad_=False)
-				fake = Variable(torch.zeros_like(real_disc), requires_grad_=False)
+				real = Variable(torch.ones_like(real_disc), requires_grad=False)
+				fake = Variable(torch.zeros_like(real_disc), requires_grad=False)
 
 
 				# generator prediction
-				pred_D = model(torch.cat((initial_SE, initial_D), 1))
+				pred_D = generator(torch.cat((initial_SE, initial_D), 1))
 
 				#calculate generator loss
 				generator_loss = criterion(discriminator(pred_D), real)
@@ -177,26 +178,27 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 
 
 			# plot out some samples from validation
-			fig, axs = plt.subplots(len(validation_samples), 4, figsize=(1*4,1*len(validation_samples)),
-							subplot_kw={'aspect': 'auto'}, sharex=True, sharey=True, squeeze=True)
-			fig.suptitle('Generated Topology Optimization SE predictions')
-			for ax_row in axs:
-				for ax in ax_row:
-					ax.set_xticks([])
-					ax.set_yticks([])
+				fig, axs = plt.subplots(len(validation_samples), 4, figsize=(1*4,1*len(validation_samples)),
+						subplot_kw={'aspect': 'auto'}, sharex=True, sharey=True, squeeze=True)
+				fig.suptitle('Generated Topology Optimization Predictions')
+				for ax_row in axs:
+					for ax in ax_row:
+						ax.set_xticks([])
+						ax.set_yticks([])
 
-			for idx, sample in enumerate(validation_samples):
-				initial_SE = sample['initial_SE'].type_as(next(model.parameters()))
-				final_SE = sample['final_SE'].type_as(next(model.parameters()))
-				final_D = sample['final_D'].type_as(next(model.parameters()))
-				prediction_D = generator(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
-				if isinstance(prediction_SE, tuple):
-					prediction_D = prediction_D[1]
-				axs[idx][0].imshow(log_normalization(initial_SE).cpu().detach().squeeze().numpy(), cmap=plt.cm.jet, interpolation='nearest')
-				axs[idx][1].imshow((1-initial_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
-				axs[idx][2].imshow((1-final_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
-				axs[idx][3].imshow((1-prediction_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
-			tensorboard.add_figure('Predicted Density', fig, epoch)
+				for idx, sample in enumerate(validation_samples):
+
+					initial_SE = sample['initial_SE'].type_as(next(generator.parameters()))
+					initial_D = sample['initial_D'].type_as(next(generator.parameters()))
+					final_D = sample['final_D'].type_as(next(generator.parameters()))
+					predict_D = generator(torch.cat((initial_SE, initial_D), 0).unsqueeze(0))
+					if isinstance(predict_D, tuple):
+						predict_D = predict_D[1]
+					axs[idx][0].imshow(initial_SE.cpu().detach().squeeze().numpy(), cmap=plt.cm.jet, interpolation='nearest')
+					axs[idx][1].imshow((1-initial_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
+					axs[idx][2].imshow((1-final_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
+					axs[idx][3].imshow((1-predict_D.cpu().detach().squeeze().numpy()), vmin=0, vmax=1, cmap=plt.cm.gray, interpolation='nearest')
+				tensorboard.add_figure('generated_sample', fig, epoch)
 		#save training outputs and model checkpoints
 			torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
 			torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
@@ -234,7 +236,7 @@ if __name__ == '__main__':
 	validation_loader = torch.utils.data.DataLoader(validation_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 	#output path
-	output_path = os.path.join('./logs/' + tensorboard + '/') 
+	output_path = os.path.join('./logs_GAN/' + tensorboard + '/') 
 
 	#create appropriate directory if it DNE
 	if not os.path.exists(output_path):

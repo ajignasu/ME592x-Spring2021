@@ -80,7 +80,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 			generator_loss.backward()
 
 			#take generator's optimization step
-			opt_generator.step
+			opt_generator.step()
 
 
 			#unfreeze discriminator
@@ -203,7 +203,7 @@ def train(device, train_loader, validation_loader, validation_samples, epochs, t
 if __name__ == '__main__':
 
 	# set parameters
-	epochs = 2
+	epochs = 50
 	tensorboard = 'dbug'
 	batch_size = 32
 	#training parameters
@@ -226,7 +226,7 @@ if __name__ == '__main__':
 	validation_loader = torch.utils.data.DataLoader(validation_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
 	#output path
-	output_path = os.path.join('./logs/' + tensorboard + '/') 
+	output_path = os.path.join('./logs_wGAN/' + tensorboard + '/') 
 
 	#create appropriate directory if it DNE
 	if not os.path.exists(output_path):
@@ -241,11 +241,11 @@ if __name__ == '__main__':
 	train(device, train_loader, validation_loader, validation_samples, epochs, tensorboard)
 
 	print('Training loop completed.')
-	# print('Saving model...')
+	print('Saving model...')
 	# #save training outputs and model checkpoints
 	# torch.save(generator.state_dict(), os.path.join(output_path, 'generator.pt'))
 	# torch.save(discriminator.state_dict(), os.path.join(output_path, "discriminator.pt"))
-	# print('Model saved.')
+	print('Model saved.')
 
 
 			
